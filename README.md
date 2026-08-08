@@ -214,12 +214,15 @@ RGB round-tripping, timeline reordering and the download.
 
 ## Licence
 
-Protoface is **MIT** — see [LICENSE](LICENSE).
+Protoface is **MIT** — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 The sample animations in `fixtures/anims/` are *not*. They're unmodified files
 from the ProtoESP repo, © NCPlyn, GPL-3.0. See
 [fixtures/README.md](fixtures/README.md); delete the folder and pass the tests a
 path to your own firmware checkout if you'd rather not have them.
+
+Protoface contains no code from ProtoESP. It's an independent implementation
+that reads and writes the same file format.
 
 ## Credit
 

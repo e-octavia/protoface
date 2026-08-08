@@ -1,0 +1,35 @@
+Protoface
+Copyright (c) 2026 Protoface contributors
+
+This product is licensed under the MIT License (see LICENSE), which covers
+protoface.html, test.mjs, and the documentation.
+
+---
+
+Third-party content
+-------------------
+
+fixtures/anims/*.json
+
+  Eight sample animations copied unmodified from NCPlyn's ProtogenHelmet-ESP32
+  (https://github.com/NCPlyn/ProtogenHelmet-ESP32), at
+  ProtoESP-Controller/data/anims/.
+
+  Copyright (c) NCPlyn. Licensed under GPL-3.0, NOT under the MIT licence
+  above. They are included solely as test fixtures, so that Protoface's
+  compatibility with the firmware can be asserted against real files rather
+  than assumed. See fixtures/README.md for how to remove them.
+
+---
+
+Acknowledgement
+---------------
+
+The ProtoESP firmware, the animation file format Protoface reads and writes,
+and the original animator this tool complements are all the work of NCPlyn,
+licensed GPL-3.0. Protoface contains no code from that project — it is an
+independent implementation that interoperates with the same file format — but
+it would not exist without it.
+
+If you build a protogen on NCPlyn's work, they ask for a donation, and it is
+fair: https://revolut.me/ncplyn

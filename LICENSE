@@ -19,12 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
---------------------------------------------------------------------------
-
-The MIT licence above covers the Protoface source: protoface.html, test.mjs,
-and the documentation.
-
-It does NOT cover the sample animations in fixtures/anims/. Those are
-unmodified files from NCPlyn's ProtogenHelmet-ESP32 and remain under GPL-3.0.
-See fixtures/README.md.
