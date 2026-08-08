@@ -29,9 +29,9 @@ painful once you're making things that *move* rather than single faces:
 | Frame timeline               | thumbnails, drag to reorder | numbered list |
 | Motion tween (Slide)         | yes       | no |
 | Playback                     | at real per-frame timings | yes |
-| Rotate / flip a panel        | no        | yes |
-| Toggle a whole row or column | no        | yes |
-| Copy-paste between panels    | no        | yes |
+| Rotate / flip a panel        | yes, mirror-aware | yes |
+| Toggle a whole row or column | yes, row spans the screen | yes, per panel |
+| Copy-paste between panels    | yes, mirror-aware | yes |
 | **Ear animations**           | no — passed through untouched | yes, full editor |
 | Runs on the helmet over WiFi | no        | **yes** |
 
@@ -79,6 +79,24 @@ Two behaviours that stay out of your way:
 
 Keys: `⌘Z` undo · `⇧⌘Z` redo · `Space` play · `←` `→` frames · `D` duplicate ·
 `E` eraser · `M` mirror · `O` onion · `Backspace` delete frame.
+
+## Working on one panel
+
+Click a panel's small `t` label to select it. Fill, Clear, Invert, the shift
+arrows and Slide then affect only that panel, and a **Panel** box appears with
+rotate, flip, copy and paste.
+
+These stay mirror-aware, which is the point of them: with Mirror on, rotating a
+panel clockwise rotates its opposite counter-clockwise, and pasting into one
+panel pastes a left-right flipped copy into the other. A symmetric face stays
+symmetric. Turn Mirror off to work on one side alone.
+
+With the cursor over a pixel, `R` toggles that whole row and `C` that whole
+column. A row runs the full width of its screen — one keypress draws a line
+right across a 24-pixel mouth. If the line is already full it clears instead.
+
+Keys: `[` `]` rotate · `⌘C` `⌘V` copy and paste the selected panel · `R` row ·
+`C` column.
 
 ## Slide
 

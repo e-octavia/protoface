@@ -283,6 +283,115 @@ await reset();
      [7, 0, 1], "it passes through column 0 and carries on");
 }
 
+console.log("\n— rotate / flip a panel —");
+await reset();
+{
+  // an L in the top-left corner of t5 (the nose, its own mirror) so orientation is unambiguous
+  const setL = () => page.evaluate(() => {
+    F().leds[5].fill(0);
+    [[0,0],[1,0],[2,0],[2,1]].forEach(([r,c]) => F().leds[5][r*8+c] = 1);
+    selectSeg(5); render();
+  });
+  const cells = s => page.evaluate(seg => [...F().leds[seg]].map((v,i) => v ? [i>>3, i&7] : null).filter(Boolean), s);
+
+  await setL();
+  eq(await cells(5), [[0,0],[1,0],[2,0],[2,1]], "starting L");
+  await page.click("#pRotCW");
+  // the bar lies along the top; the foot, which was right of the bar's bottom,
+  // ends up below the bar's left end
+  eq(await cells(5), [[0,5],[0,6],[0,7],[1,5]], "↻ takes the top-left corner to the top-right");
+  await page.click("#pRotCCW");
+  eq(await cells(5), [[0,0],[1,0],[2,0],[2,1]], "↺ puts it back");
+  await page.click("#pFlipH");
+  eq(await cells(5), [[0,7],[1,7],[2,6],[2,7]], "↔ mirrors left-to-right");
+  await page.click("#pFlipH");
+  await page.click("#pFlipV");
+  eq(await cells(5), [[5,0],[5,1],[6,0],[7,0]], "↕ mirrors top-to-bottom");
+  await page.keyboard.press("Meta+z");
+  eq(await cells(5), [[0,0],[1,0],[2,0],[2,1]], "each op is one undo step");
+}
+
+console.log("\n— panel ops keep a mirrored face symmetric —");
+await reset();
+{
+  const symmetric = () => page.evaluate(() =>
+    S.frames[0].leds.every((p, s) =>
+      [...p].every((v, i) => v === S.frames[0].leds[S.nSeg-1-s][(i>>3)*8 + (7-(i&7))])));
+  await page.evaluate(() => {
+    [[0,0],[1,0],[2,0],[2,1]].forEach(([r,c]) => paint(0, r*8+c, 1));   // mirror on
+    selectSeg(0);
+  });
+  eq(await symmetric(), true, "the drawing starts symmetric");
+  for (const op of ["#pRotCW", "#pFlipH", "#pFlipV", "#pRotCCW"]) {
+    await page.click(op);
+    eq(await symmetric(), true, `still symmetric after ${op.slice(2)}`);
+  }
+  eq(await page.evaluate(() => {
+      selectSeg(0); const before = [...F().leds[10]];
+      document.getElementById("tMirror").click();      // mirror off
+      panelOp("rotCW");
+      const after = [...F().leds[10]];
+      return before.join("") === after.join("");
+     }), true, "with Mirror off the far panel is left alone");
+}
+
+console.log("\n— copy / paste a panel —");
+await reset();
+{
+  await page.evaluate(() => {
+    document.getElementById("tMirror").click();                     // mirror off
+    [[0,0],[1,0],[2,0],[2,1]].forEach(([r,c]) => F().leds[2][r*8+c] = 1);
+    selectSeg(2); render();
+  });
+  eq(await page.evaluate(() => document.getElementById("pPaste").disabled), true, "Paste is disabled until something is copied");
+  await page.click("#pCopy");
+  eq(await page.evaluate(() => document.getElementById("pPaste").disabled), false, "Paste enables after Copy");
+  await page.evaluate(() => selectSeg(4));
+  await page.click("#pPaste");
+  eq(await page.evaluate(() => [...F().leds[4]].join("") === [...F().leds[2]].join("")), true,
+     "t4 now matches t2 exactly");
+  eq(await page.evaluate(() => F().leds[3].every(v => !v)), true, "nothing else was touched");
+
+  // with mirror on, paste also lands mirrored on the far side
+  await reset();
+  await page.evaluate(() => {
+    [[0,0],[1,0],[2,0],[2,1]].forEach(([r,c]) => F().leds[2][r*8+c] = 1);
+    selectSeg(2); copyPanel(); selectSeg(3); pastePanel();
+  });
+  eq(await page.evaluate(() => [...F().leds[7]].map((v,i) => v ? [i>>3,i&7] : null).filter(Boolean)),
+     [[0,7],[1,7],[2,6],[2,7]], "the mirror panel t7 got a left-right flipped copy");
+  eq(await page.evaluate(() => S.undo.length), 1, "a paste is one undo step; the copy is not an edit");
+}
+
+console.log("\n— toggle a row or column —");
+await reset();
+{
+  const hover = (seg, idx) => page.evaluate(([s,i]) => {
+    document.querySelector(`.px[data-seg="${s}"][data-idx="${i}"]`)
+      .dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+  }, [seg, idx]);
+
+  await hover(3, 2*8 + 4);                       // mouth band t2/t3/t4, row 2
+  await page.keyboard.press("r");
+  eq(await page.evaluate(() => [2,3,4].map(s => [...F().leds[s]].filter(Boolean).length)), [8,8,8],
+     "R lights the whole row across all three panels of the mouth band");
+  eq(await page.evaluate(() => [6,7,8].map(s => [...F().leds[s]].filter(Boolean).length)), [8,8,8],
+     "and the mirrored band too, since Mirror is on");
+  eq(await page.evaluate(() => F().leds[0].every(v => !v)), true, "the eye band is untouched");
+  await page.keyboard.press("r");
+  eq(await page.evaluate(() => S.frames[0].leds.every(p => p.every(v => !v))), true,
+     "R again clears it — a full line toggles off");
+
+  await hover(0, 5*8 + 3);
+  await page.keyboard.press("c");
+  eq(await page.evaluate(() => [...F().leds[0]].map((v,i) => v ? i&7 : null).filter(v => v !== null)),
+     [3,3,3,3,3,3,3,3], "C lights the full 8-pixel column of that panel only");
+  eq(await page.evaluate(() => [...F().leds[10]].map((v,i) => v ? i&7 : null).filter(v => v !== null)),
+     [4,4,4,4,4,4,4,4], "mirrored to column 4 of t10");
+  await page.keyboard.press("Meta+z");
+  eq(await page.evaluate(() => S.frames[0].leds.every(p => p.every(v => !v))), true, "one ⌘Z undoes a line toggle");
+}
+
 console.log("\n— a face wider than the window stays reachable —");
 await reset();
 {

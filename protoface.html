@@ -182,6 +182,29 @@
       <button id="fRight">Move ▶</button>
     </div>
 
+    <h2>Panel</h2>
+    <div class="hint" id="panelNone">
+      Click a panel's small <b>t</b> label to select it. Fill, Clear, Invert, shift and
+      Slide then affect only that panel.
+    </div>
+    <div id="panelBox" style="display:none">
+      <div class="hint" style="margin-bottom:7px">Selected: <b id="panelWhich"></b></div>
+      <div class="row">
+        <button id="pRotCCW" title="Rotate counter-clockwise">↺</button>
+        <button id="pRotCW"  title="Rotate clockwise">↻</button>
+        <button id="pFlipH"  title="Flip left-to-right">↔</button>
+        <button id="pFlipV"  title="Flip top-to-bottom">↕</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="pCopy" title="Copy this panel (⌘C)">Copy</button>
+        <button id="pPaste" title="Paste into this panel (⌘V)" disabled>Paste</button>
+      </div>
+      <div class="hint" style="margin-top:6px">
+        With Mirror on, these keep the face symmetric — the far panel gets the
+        opposite rotation, or a mirrored paste.
+      </div>
+    </div>
+
     <h2>Ears</h2>
     <select id="earType">
       <option value="rainbow">rainbow</option>
@@ -308,6 +331,11 @@
       <kbd>Space</kbd> play/pause &nbsp; <kbd>←</kbd> <kbd>→</kbd> prev/next frame &nbsp;
       <kbd>D</kbd> duplicate frame &nbsp; <kbd>E</kbd> eraser &nbsp; <kbd>M</kbd> mirror &nbsp;
       <kbd>O</kbd> onion &nbsp; <kbd>Backspace</kbd> delete frame
+    </p>
+    <p>
+      With the cursor over a pixel: <kbd>R</kbd> toggles that row right across its screen,
+      <kbd>C</kbd> toggles that column. With a panel selected: <kbd>[</kbd> <kbd>]</kbd> rotate,
+      <kbd>⌘C</kbd> <kbd>⌘V</kbd> copy and paste it.
     </p>
     <h3 style="margin-top:16px">Credit</h3>
     <p>
@@ -525,7 +553,7 @@ function buildStage(){
 }
 
 /* ── painting ───────────────────────────────────────────────────────── */
-let painting = false, paintVal = 1;
+let painting = false, paintVal = 1, lastPx = null;
 document.addEventListener("mouseup", () => painting = false);
 document.addEventListener("mouseleave", () => painting = false);
 
@@ -547,9 +575,10 @@ stage.addEventListener("mousedown", e => {
   }
 });
 stage.addEventListener("mouseover", e => {
-  if (!painting) return;
   const d = e.target.closest(".px");
-  if (d) paint(+d.dataset.seg, +d.dataset.idx, paintVal);
+  if (!d) return;
+  lastPx = { seg: +d.dataset.seg, idx: +d.dataset.idx };   // for the R / C keys
+  if (painting) paint(lastPx.seg, lastPx.idx, paintVal);
 });
 stage.addEventListener("contextmenu", e => { if (e.target.closest(".px")) e.preventDefault(); });
 
@@ -756,10 +785,108 @@ function slide(dx, dy, count, wrap){
   return made.length;
 }
 
+/* ── single-panel operations ────────────────────────────────────────────
+   Each op has a mirror twin such that a symmetric face stays symmetric:
+   the mirror of a clockwise rotation is a counter-clockwise one, and a flip
+   is its own twin. (Proof for rotation: mirror is p[r][c] = m[r][7-c];
+   rotCW gives p'[r][c] = p[7-c][r], and rotCCW on m gives
+   m'[r][7-c] = m[7-c][7-r] = p[7-c][r]. Same thing.)                      */
+const OPS = {
+  rotCW:  { map: (r, c) => [7 - c, r],     twin: "rotCCW", label: "rotated ↻" },
+  rotCCW: { map: (r, c) => [c, 7 - r],     twin: "rotCW",  label: "rotated ↺" },
+  flipH:  { map: (r, c) => [r, 7 - c],     twin: "flipH",  label: "flipped ↔" },
+  flipV:  { map: (r, c) => [7 - r, c],     twin: "flipV",  label: "flipped ↕" }
+};
+
+function remapPanel(f, seg, map){
+  const L = f.leds[seg], P = f.pp[seg];
+  const nl = new Uint8Array(64), np = new Array(64).fill("");
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const [sr, sc] = map(r, c);
+    nl[r*8 + c] = L[sr*8 + sc];
+    np[r*8 + c] = P[sr*8 + sc];
+  }
+  f.leds[seg] = nl; f.pp[seg] = np;
+}
+
+function panelOp(op){
+  if (S.selSeg < 0) return false;
+  edit();
+  const f = F(), p = S.selSeg, m = S.nSeg - 1 - p;
+  remapPanel(f, p, OPS[op].map);
+  if (S.mirror && m !== p) remapPanel(f, m, OPS[OPS[op].twin].map);
+  render(); touch();
+  document.getElementById("status").textContent =
+    "t" + p + " " + OPS[op].label + (S.mirror && m !== p ? " (and t" + m + ")" : "");
+  return true;
+}
+
+let clip = null;
+function copyPanel(){
+  if (S.selSeg < 0) return false;
+  const f = F();
+  clip = { leds: Uint8Array.from(f.leds[S.selSeg]), pp: f.pp[S.selSeg].slice() };
+  document.getElementById("status").textContent = "copied t" + S.selSeg;
+  syncPanelBox();
+  return true;
+}
+function pastePanel(){
+  if (S.selSeg < 0 || !clip) return false;
+  edit();
+  const f = F(), p = S.selSeg, m = S.nSeg - 1 - p;
+  f.leds[p] = Uint8Array.from(clip.leds);
+  f.pp[p] = clip.pp.slice();
+  if (S.mirror && m !== p) {                       // the far side gets it mirrored
+    const nl = new Uint8Array(64), np = new Array(64).fill("");
+    for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+      nl[r*8 + c] = clip.leds[r*8 + (7 - c)];
+      np[r*8 + c] = clip.pp  [r*8 + (7 - c)];
+    }
+    f.leds[m] = nl; f.pp[m] = np;
+  }
+  render(); touch();
+  document.getElementById("status").textContent =
+    "pasted into t" + p + (S.mirror && m !== p ? " and t" + m : "");
+  return true;
+}
+
+// Toggle the whole row or column under the cursor. A row runs the full width of
+// its band, so one keypress draws a line right across a 24-pixel mouth.
+function toggleLine(kind){
+  if (!lastPx) return false;
+  const { seg, idx } = lastPx, r = idx >> 3, c = idx & 7;
+  const cells = new Set();
+  const add = (s, i) => {
+    cells.add(s + ":" + i);
+    if (S.mirror) cells.add((S.nSeg - 1 - s) + ":" + ((i >> 3)*8 + (7 - (i & 7))));
+  };
+  if (kind === "col") for (let rr = 0; rr < 8; rr++) add(seg, rr*8 + c);
+  else (bands().find(b => b.includes(seg)) || [seg])
+        .forEach(s => { for (let cc = 0; cc < 8; cc++) add(s, r*8 + cc); });
+
+  const list = [...cells].map(k => k.split(":").map(Number));
+  edit();
+  const f = F();
+  const allOn = list.every(([s, i]) => f.leds[s][i]);
+  list.forEach(([s, i]) => { f.leds[s][i] = allOn ? 0 : 1; if (allOn) f.pp[s][i] = ""; });
+  render(); touch();
+  return true;
+}
+
 function selectSeg(i){
   S.selSeg = (S.selSeg === i) ? -1 : i;
   document.querySelectorAll(".seg").forEach(el => el.classList.toggle("sel", +el.dataset.seg === S.selSeg));
   document.getElementById("shiftScope").textContent = S.selSeg >= 0 ? ("panel t" + S.selSeg) : "whole face";
+  syncPanelBox();
+}
+function syncPanelBox(){
+  const on = S.selSeg >= 0;
+  document.getElementById("panelNone").style.display = on ? "none" : "";
+  document.getElementById("panelBox").style.display  = on ? "" : "none";
+  if (on) document.getElementById("panelWhich").textContent =
+    "t" + S.selSeg + (S.mirror && S.nSeg - 1 - S.selSeg !== S.selSeg
+      ? " (and t" + (S.nSeg - 1 - S.selSeg) + ", mirrored)" : "");
+  document.getElementById("pPaste").disabled = !on || !clip;
 }
 
 /* ── frames ─────────────────────────────────────────────────────────── */
@@ -859,7 +986,9 @@ function setTool(t){
   tPaint.classList.toggle("on", t === "paint");
   tErase.classList.toggle("on", t === "erase");
 }
-document.getElementById("tMirror").onclick = e => { S.mirror = !S.mirror; e.currentTarget.classList.toggle("on", S.mirror); };
+document.getElementById("tMirror").onclick = e => {
+  S.mirror = !S.mirror; e.currentTarget.classList.toggle("on", S.mirror); syncPanelBox();
+};
 document.getElementById("bOnion").onclick  = e => { S.onion  = !S.onion;  e.currentTarget.classList.toggle("on", S.onion); render(); };
 document.getElementById("ledColor").oninput = render;
 document.getElementById("bRGB").onclick = e => {
@@ -884,6 +1013,12 @@ document.getElementById("earType").onchange = e => {
 
 document.getElementById("bUndo").onclick = undo;
 document.getElementById("bRedo").onclick = redo;
+document.getElementById("pRotCW").onclick  = () => panelOp("rotCW");
+document.getElementById("pRotCCW").onclick = () => panelOp("rotCCW");
+document.getElementById("pFlipH").onclick  = () => panelOp("flipH");
+document.getElementById("pFlipV").onclick  = () => panelOp("flipV");
+document.getElementById("pCopy").onclick   = copyPanel;
+document.getElementById("pPaste").onclick  = pastePanel;
 
 document.addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
@@ -891,6 +1026,13 @@ document.addEventListener("keydown", e => {
     e.preventDefault(); e.shiftKey ? redo() : undo(); return;
   }
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if ((e.metaKey || e.ctrlKey) && k === "c") { if (copyPanel())  e.preventDefault(); return; }
+  if ((e.metaKey || e.ctrlKey) && k === "v") { if (pastePanel()) e.preventDefault(); return; }
+  if (e.metaKey || e.ctrlKey) return;           // leave every other ⌘-combo alone
+  if (k === "r") { if (toggleLine("row")) e.preventDefault(); return; }
+  if (k === "c") { if (toggleLine("col")) e.preventDefault(); return; }
+  if (k === "[") { panelOp("rotCCW"); return; }
+  if (k === "]") { panelOp("rotCW");  return; }
   if (e.key === " ")          { e.preventDefault(); play(); }
   else if (e.key === "ArrowLeft"  && S.frames.length) { S.cur = (S.cur - 1 + S.frames.length) % S.frames.length; render(); }
   else if (e.key === "ArrowRight" && S.frames.length) { S.cur = (S.cur + 1) % S.frames.length; render(); }
@@ -1045,7 +1187,7 @@ function applyLayout(visType, isMouth){
   const changed = p.nSeg !== S.nSeg || p.nBlush !== S.nBlush;
   S.visType = visType; S.grid = p.grid; S.nSeg = p.nSeg; S.nBlush = p.nBlush;
   S.isMouth = isMouth.map(Boolean);
-  S.selSeg = -1;
+  S.selSeg = -1; lastPx = null; syncPanelBox();
   // a panel-count change makes older undo steps the wrong shape to restore
   if (changed) { S.frames = [blankFrame()]; S.cur = 0; clearHistory(); }
   else if (!S.frames.length) { S.frames = [blankFrame()]; S.cur = 0; }
