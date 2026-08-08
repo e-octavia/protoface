@@ -82,9 +82,12 @@ Keys: `⌘Z` undo · `⇧⌘Z` redo · `Space` play · `←` `→` frames · `D`
 
 ## Working on one panel
 
-Click a panel's small `t` label to select it. Fill, Clear, Invert, the shift
-arrows and Slide then affect only that panel, and a **Panel** box appears with
-rotate, flip, copy and paste.
+Select a panel three ways: click one of the `t0 t1 t2…` chips in the sidebar,
+click a panel's `t` label on the face, or shift-click any of its pixels. Click
+again to deselect.
+
+Fill, Clear, Invert, the shift arrows and Slide then affect only that panel, and
+a **Panel** box appears with rotate, flip, copy and paste.
 
 These stay mirror-aware, which is the point of them: with Mirror on, rotating a
 panel clockwise rotates its opposite counter-clockwise, and pasting into one

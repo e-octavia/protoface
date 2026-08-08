@@ -283,6 +283,30 @@ await reset();
      [7, 0, 1], "it passes through column 0 and carries on");
 }
 
+console.log("\n— selecting a panel —");
+await reset();
+{
+  eq(await page.locator("#panelChips button").count(), 11, "one chip per panel");
+  await page.locator('#panelChips button[data-chip="4"]').click();
+  eq(await page.evaluate(() => S.selSeg), 4, "a sidebar chip selects");
+  eq(await page.evaluate(() => document.getElementById("panelBox").style.display !== "none"), true,
+     "the Panel tools appear");
+  await page.locator('#panelChips button[data-chip="4"]').click();
+  eq(await page.evaluate(() => S.selSeg), -1, "clicking the same chip deselects");
+
+  await page.locator('.seg[data-seg="6"] .tag').click();
+  eq(await page.evaluate(() => S.selSeg), 6, "the t-label on the face selects");
+
+  const lit = () => page.evaluate(() => S.frames.reduce((a,f) => a + f.leds.flatMap(x => [...x]).filter(Boolean).length, 0));
+  await page.locator('.px[data-seg="8"]').first().click({ modifiers: ["Shift"] });
+  eq(await page.evaluate(() => S.selSeg), 8, "shift-clicking a pixel selects its panel");
+  eq(await lit(), 0, "…and does not paint it");
+
+  await page.evaluate(() => applyLayout(PRESETS["14"].visType, PRESETS["14"].isMouth));
+  eq(await page.locator("#panelChips button").count(), 14, "chips rebuild when the layout changes");
+  eq(await page.evaluate(() => S.selSeg), -1, "and the selection is cleared");
+}
+
 console.log("\n— rotate / flip a panel —");
 await reset();
 {
